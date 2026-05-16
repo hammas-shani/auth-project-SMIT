@@ -1,41 +1,48 @@
-# Core Framework
-fastapi[standard]
-uvicorn[standard]==0.35.0
+# ─────────────────────────────────────────────────────────────────────────────
+# Core-Auth System — Python Dependencies
+# Install with: pip install -r requirements.txt
+# ─────────────────────────────────────────────────────────────────────────────
 
-# Database
-sqlalchemy==2.0.43
-asyncpg==0.30.0
-alembic==1.16.4
+# ── Core Framework ────────────────────────────────────────────────────────────
+fastapi[standard]==0.115.12     # FastAPI with standard extras (email-validator, etc.)
+uvicorn[standard]==0.35.0       # ASGI server with WebSocket + HTTP/2 support
 
-# Validation & Settings
-pydantic==2.11.7
-pydantic-settings==2.10.1
-email-validator==2.2.0
+# ── Database — Async SQLAlchemy ───────────────────────────────────────────────
+sqlalchemy==2.0.43              # ORM + async engine (create_async_engine)
+aiosqlite==0.20.0               # Async SQLite driver (local dev + tests)
+asyncpg==0.30.0                 # Async PostgreSQL driver (CI + production)
+alembic==1.16.1                 # Database migration tool
 
-# Authentication & Security
-python-jose[cryptography]==3.5.0
-passlib[bcrypt]==1.7.4
-bcrypt==4.3.0
-python-multipart==0.0.20
+# ── Validation & Settings ─────────────────────────────────────────────────────
+pydantic==2.11.7                # Data validation and serialization
+pydantic-settings==2.10.1       # Load settings from .env file
+email-validator==2.2.0          # Required by pydantic for EmailStr validation
 
-# Redis
-redis==6.4.0
+# ── Authentication & Cryptography ─────────────────────────────────────────────
+python-jose[cryptography]==3.3.0 # JWT encoding/decoding with HS256 support
+passlib[bcrypt]==1.7.4           # Password hashing (bcrypt context)
+bcrypt==4.2.1                    # bcrypt backend for passlib
+python-multipart==0.0.20         # Required by FastAPI for form data (OAuth2 forms)
 
-# Async HTTP Client
-httpx==0.28.1
+# ── Redis (In-Memory Blacklist Layer) ─────────────────────────────────────────
+redis[asyncio]==5.2.1            # Async Redis client (redis.asyncio namespace)
 
-# Testing
-pytest==8.4.1
-pytest-asyncio==1.1.0
-pytest-cov==6.2.1
+# ── Async HTTP Client (for tests) ────────────────────────────────────────────
+httpx==0.28.1                    # Async HTTP client — used with ASGITransport in tests
+anyio[asyncio]==4.9.0            # Async backend — required by httpx + pytest-asyncio
 
-# Linting & Formatting
-black==25.1.0
-ruff==0.12.8
-flake8==7.3.0
+# ── Testing ───────────────────────────────────────────────────────────────────
+pytest==8.4.1                    # Test runner
+pytest-asyncio==0.24.0           # Async test support (asyncio_mode = auto)
+pytest-cov==6.2.1                # Coverage reporting (--cov flag)
 
-# Security Scanning
-bandit==1.8.6
+# ── Linting & Formatting ──────────────────────────────────────────────────────
+ruff==0.9.10                     # Fast all-in-one linter (replaces flake8+isort+more)
+flake8==7.3.0                    # PEP8 style checker (required by Spec §5 pipeline)
+black==25.1.0                    # Code formatter
 
-# Environment Variables
-python-dotenv==1.1.1
+# ── Static Security Analysis (SAST) ──────────────────────────────────────────
+bandit==1.8.3                    # SAST scanner (Spec §5 — detects weak crypto, hardcoded secrets)
+
+# ── Environment ───────────────────────────────────────────────────────────────
+python-dotenv==1.1.1             # Load .env file (used by pydantic-settings)
