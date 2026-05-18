@@ -27,17 +27,9 @@ import pytest
 from httpx import AsyncClient
 from unittest.mock import AsyncMock
 
-
-# -- Test Payload Constants --------------------------------------------------
-# Shared test user data used across all test functions.
 TEST_EMAIL = "testuser@coreauth.dev"
 TEST_PASSWORD = "SecurePass123!"
 TEST_NAME = "Test User"
-
-
-# =============================================================================
-# STEP 1: Registration (Spec §4.1 Step 1)
-# =============================================================================
 
 
 @pytest.mark.asyncio
@@ -64,21 +56,18 @@ async def test_01_register(client: AsyncClient):
         },
     )
 
-    # Correct HTTP status for resource creation
     assert (
         response.status_code == 201
     ), f"Expected 201, got {response.status_code}: {response.text}"
 
     data = response.json()
 
-    # All required UserRegistrationResponse fields (Spec §3.1)
     assert "id" in data, "Response must contain 'id'"
     assert "email" in data, "Response must contain 'email'"
     assert "is_active" in data, "Response must contain 'is_active'"
     assert "is_superuser" in data, "Response must contain 'is_superuser'"
     assert "created_at" in data, "Response must contain 'created_at'"
 
-    # Field value assertions
     assert data["email"] == TEST_EMAIL, (
         "Returned email must match the submitted email"
     )
@@ -88,7 +77,6 @@ async def test_01_register(client: AsyncClient):
     ), "New accounts must not be superuser by default"
     assert isinstance(data["id"], int), "ID must be an integer"
 
-    # Critical security check: password must NEVER appear in the response
     assert "password" not in data, (
         "Plaintext password must never be in response"
     )
@@ -105,7 +93,6 @@ async def test_01b_register_duplicate_email(client: AsyncClient):
     First register the user, then attempt to register again with same email.
     The second request must fail.
     """
-    # First registration — should succeed
     await client.post(
         "/auth/signup",
         json={
@@ -115,7 +102,6 @@ async def test_01b_register_duplicate_email(client: AsyncClient):
         },
     )
 
-    # Second registration with same email — must fail
     response = await client.post(
         "/auth/signup",
         json={"email": TEST_EMAIL, "password": TEST_PASSWORD},
@@ -125,11 +111,6 @@ async def test_01b_register_duplicate_email(client: AsyncClient):
         "Duplicate email registration must return 400"
     )
     assert "already registered" in response.json()["detail"].lower()
-
-
-# =============================================================================
-# STEP 2: Authentication (Spec §4.1 Step 2)
-# =============================================================================
 
 
 @pytest.mark.asyncio
@@ -146,7 +127,6 @@ async def test_02_login(client: AsyncClient):
         ✅ Both access_token and refresh_token are non-empty strings
         ✅ The two tokens are DIFFERENT (separate JTIs and payloads)
     """
-    # Register the user first
     await client.post(
         "/auth/signup",
         json={
@@ -156,7 +136,6 @@ async def test_02_login(client: AsyncClient):
         },
     )
 
-    # Attempt login
     response = await client.post(
         "/auth/login",
         json={"email": TEST_EMAIL, "password": TEST_PASSWORD},
@@ -166,12 +145,10 @@ async def test_02_login(client: AsyncClient):
 
     data = response.json()
 
-    # All required TokenExchangeResponse fields (Spec §3.2)
     assert "access_token" in data, "Response must contain 'access_token'"
     assert "refresh_token" in data, "Response must contain 'refresh_token'"
     assert "token_type" in data, "Response must contain 'token_type'"
 
-    # Field value assertions
     assert (
         data["token_type"] == "bearer"
     ), "token_type must be exactly 'bearer' (OAuth2)"
@@ -182,7 +159,6 @@ async def test_02_login(client: AsyncClient):
         data["refresh_token"]
     ) > 10
 
-    # Tokens must be different — they have different JTIs and different secrets
     assert (
         data["access_token"] != data["refresh_token"]
     ), "Access and refresh tokens must be different JWT strings"
@@ -206,11 +182,6 @@ async def test_02b_login_wrong_password(client: AsyncClient):
     assert response.status_code == 401, "Wrong password must return 401"
 
 
-# =============================================================================
-# STEP 3: Protected Route Access (Spec §4.1 Step 3)
-# =============================================================================
-
-
 @pytest.mark.asyncio
 async def test_03_protected_me(client: AsyncClient):
     """
@@ -224,7 +195,6 @@ async def test_03_protected_me(client: AsyncClient):
         ✅ Returned email matches the logged-in user
         ✅ HTTP 401 when no token is provided
     """
-    # Register and login to get tokens
     await client.post(
         "/auth/signup",
         json={
@@ -239,7 +209,6 @@ async def test_03_protected_me(client: AsyncClient):
     )
     access_token = login_resp.json()["access_token"]
 
-    # Access the protected route with the valid token
     response = await client.get(
         "/auth/me",
         headers={"Authorization": f"Bearer {access_token}"},
@@ -254,17 +223,11 @@ async def test_03_protected_me(client: AsyncClient):
     assert "id" in data
     assert "is_active" in data
 
-    # Without a token, /me must return 403 (HTTPBearer requires the header)
     unauth_response = await client.get("/auth/me")
     assert unauth_response.status_code in (
         401,
         403,
     ), "Unauthenticated request to /me must be rejected"
-
-
-# =============================================================================
-# STEP 4: Token Rotation (Spec §4.1 Step 4)
-# =============================================================================
 
 
 @pytest.mark.asyncio
@@ -281,7 +244,6 @@ async def test_04_token_refresh(client: AsyncClient):
         ✅ token_type is "bearer"
         ✅ Passing an access token to /refresh must fail (wrong key)
     """
-    # Register and login
     await client.post(
         "/auth/signup",
         json={"email": TEST_EMAIL, "password": TEST_PASSWORD},
@@ -296,7 +258,6 @@ async def test_04_token_refresh(client: AsyncClient):
     original_access = login_data["access_token"]
     original_refresh = login_data["refresh_token"]
 
-    # Use the refresh token to get a new pair
     response = await client.post(
         "/auth/refresh",
         json={"refresh_token": original_refresh},
@@ -309,7 +270,6 @@ async def test_04_token_refresh(client: AsyncClient):
     assert "refresh_token" in data
     assert data["token_type"] == "bearer"
 
-    # New tokens must be different — new JTIs are generated each time
     assert data["access_token"] != original_access, (
         "New access token must be different"
     )
@@ -317,19 +277,13 @@ async def test_04_token_refresh(client: AsyncClient):
         data["refresh_token"] != original_refresh
     ), "New refresh token must be different"
 
-    # Passing an access token to /refresh must fail (dual-secret protection)
     bad_response = await client.post(
         "/auth/refresh",
-        json={"refresh_token": original_access},  # Wrong! This is an access token
+        json={"refresh_token": original_access},
     )
     assert (
         bad_response.status_code == 401
     ), "Access token must be rejected by /refresh (dual-secret enforcement)"
-
-
-# =============================================================================
-# STEP 5: Logout / Session Revocation (Spec §4.1 Step 5)
-# =============================================================================
 
 
 @pytest.mark.asyncio
@@ -345,7 +299,6 @@ async def test_05_logout(client: AsyncClient, mock_redis):
         ✅ Redis setex was called — the JTI was blacklisted
         ✅ "detail" field contains a human-readable confirmation message
     """
-    # Register and login
     await client.post(
         "/auth/signup",
         json={"email": TEST_EMAIL, "password": TEST_PASSWORD},
@@ -357,7 +310,6 @@ async def test_05_logout(client: AsyncClient, mock_redis):
         )
     ).json()["access_token"]
 
-    # Logout using the access token
     response = await client.post(
         "/auth/logout",
         headers={"Authorization": f"Bearer {access_token}"},
@@ -366,18 +318,10 @@ async def test_05_logout(client: AsyncClient, mock_redis):
     assert response.status_code == 200, f"Logout failed: {response.text}"
 
     data = response.json()
-    # StandardActionResponse must have "detail" field (Spec §3.3)
     assert "detail" in data, "Logout response must contain 'detail' field"
     assert len(data["detail"]) > 0, "Detail must not be empty"
 
-    # Verify Redis blacklist was called — the JTI was stored
-    # mock_redis.setex is the AsyncMock — assert_called_once confirms it was invoked
     mock_redis.setex.assert_called_once()
-
-
-# =============================================================================
-# STEP 6: Zero-Trust Post-Validation (Spec §4.1 Step 6)
-# =============================================================================
 
 
 @pytest.mark.asyncio
@@ -399,7 +343,6 @@ async def test_06_zero_trust_blacklisted_token(
         ✅ Protected endpoint is completely blocked (Zero-Trust enforcement)
         ✅ No user data is returned for a revoked token
     """
-    # Register and login
     await client.post(
         "/auth/signup",
         json={"email": TEST_EMAIL, "password": TEST_PASSWORD},
@@ -411,24 +354,18 @@ async def test_06_zero_trust_blacklisted_token(
         )
     ).json()["access_token"]
 
-    # Simulate that this token's JTI has been blacklisted in Redis.
-    # exists() returning 1 means "key found in blacklist".
-    # This is exactly what Redis would return after a real logout.
     mock_redis.exists = AsyncMock(return_value=1)
 
-    # Attempt to use the "blacklisted" token on the protected route
     response = await client.get(
         "/auth/me",
         headers={"Authorization": f"Bearer {access_token}"},
     )
 
-    # Must be blocked with HTTP 401 (Spec §4.1 Step 6)
     assert response.status_code == 401, (
         f"Blacklisted token must return 401, got {response.status_code}. "
         "Zero-Trust enforcement failed!"
     )
 
-    # Confirm no user profile data leaked into the response
     data = response.json()
     assert "email" not in data, (
         "No user data must be returned for revoked tokens"

@@ -33,7 +33,6 @@ from app.routes.auth import router as auth_router
 from app.services.redis_service import init_redis, close_redis
 
 
-# ── Lifespan Context Manager ──────────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
@@ -45,37 +44,22 @@ async def lifespan(app: FastAPI):
     Using a single lifespan function (instead of separate on_event handlers)
     ensures startup and shutdown logic stays paired and readable.
     """
-    # --- STARTUP ---------------------------------------------------------------
-
-    # 1. Create all database tables defined in app/models/users.py.
-    #    "create_all" is idempotent — if tables already exist, it skips them.
-    #    Uses the async engine: non-blocking, runs entirely on the event loop.
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     print("✅ Database tables created / verified")
 
-    # 2. Initialize the Redis connection pool.
-    #    Creates the pool now so every subsequent request reuses the same
-    #    connections instead of opening a new one per request.
     await init_redis()
     print("✅ Redis connection pool initialized")
 
-    # --- APPLICATION RUNS ------------------------------------------------------
-    yield  # ← Application is live and accepting requests here
+    yield
 
-    # --- SHUTDOWN --------------------------------------------------------------
-
-    # 3. Close the Redis pool — drains in-flight operations first.
     await close_redis()
     print("✅ Redis connection pool closed")
 
-    # 4. Dispose the SQLAlchemy engine — releases all database connections back
-    #    to the pool and then closes the pool itself.
     await engine.dispose()
     print("✅ Database engine disposed")
 
 
-# ── FastAPI Application Instance ─────────────────────────────────────────────
 app = FastAPI(
     title="Core-Auth System",
     description=(
@@ -84,17 +68,12 @@ app = FastAPI(
         "stateful token blacklisting. Version: Core-Auth v1.4.2-Prod."
     ),
     version="1.4.2",
-    lifespan=lifespan,  # Attach the lifecycle manager defined above
+    lifespan=lifespan,
 )
 
-
-# -- Route Registration -------------------------------------------------------
-# Mount all auth routes under the /auth URL prefix.
-# Swagger UI at /docs groups them under the "Authentication" tag.
 app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
 
 
-# ── Health Check Endpoint ────────────────────────────────────────────────────
 @app.get("/", tags=["Health"])
 async def root():
     """
@@ -111,10 +90,6 @@ async def root():
     }
 
 
-# ── Local Development Entry Point ────────────────────────────────────────────
-# Only executed when running: python -m app.main
-# For development:   uvicorn app.main:app --reload
-# For production:    uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
 if __name__ == "__main__":
     import uvicorn
 

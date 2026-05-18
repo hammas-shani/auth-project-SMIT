@@ -42,20 +42,8 @@ from app.main import app
 from app.database.db import Base, get_db
 import app.services.redis_service as redis_module
 
-
-# ── pytest-asyncio configuration ─────────────────────────────────────────────
-# "auto" mode: all async test functions are automatically treated as
-# asyncio coroutines. No need to decorate each test with @pytest.mark.asyncio.
 pytest_plugins = ["pytest_asyncio"]
 
-
-# =============================================================================
-# DATABASE FIXTURE — In-Memory SQLite
-# =============================================================================
-
-# Isolated in-memory SQLite URL.
-# ":memory:" means the database is created in RAM and destroyed when the
-# engine is disposed. Each test gets a completely fresh database state.
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
 
@@ -74,37 +62,27 @@ async def db_session():
         3. Yield an AsyncSession for the test to use
         4. After the test completes: drop all tables, dispose the engine
     """
-    # Create a fresh async engine pointing to in-memory SQLite
     test_engine = create_async_engine(
         TEST_DATABASE_URL,
-        echo=False,  # Set echo=True to log SQL queries during debugging
+        echo=False,
         future=True,
     )
 
-    # Create a session factory bound to the test engine
     TestSessionLocal = async_sessionmaker(
         test_engine,
         class_=AsyncSession,
         expire_on_commit=False,
     )
 
-    # Create all tables (users, etc.) fresh for this test
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
-    # Yield the session → test runs here
     async with TestSessionLocal() as session:
         yield session
 
-    # Teardown: drop all tables and dispose the engine after each test
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
     await test_engine.dispose()
-
-
-# =============================================================================
-# REDIS MOCK FIXTURE — No Real Redis Required
-# =============================================================================
 
 
 @pytest_asyncio.fixture(scope="function", autouse=True)
@@ -126,28 +104,18 @@ async def mock_redis():
 
     This fixture yields the mock so individual tests can configure it.
     """
-    # Create an AsyncMock that behaves like an async Redis client
     mock = AsyncMock()
 
-    # Default behavior: token is NOT blacklisted (exists returns 0)
     mock.exists = AsyncMock(return_value=0)
 
-    # Default behavior: setex (blacklist write) succeeds silently
     mock.setex = AsyncMock(return_value=True)
 
-    # Patch the global redis_client in the redis_service module
     original_client = redis_module.redis_client
     redis_module.redis_client = mock
 
-    yield mock  # ← test runs here, with mock in place
+    yield mock
 
-    # Restore the original client after each test
     redis_module.redis_client = original_client
-
-
-# =============================================================================
-# HTTP CLIENT FIXTURE — Async Test Client with DB Override
-# =============================================================================
 
 
 @pytest_asyncio.fixture(scope="function")
@@ -169,7 +137,6 @@ async def client(db_session):
         httpx.AsyncClient: Ready-to-use async HTTP client for the test.
     """
 
-    # Override get_db to use the test session instead of the production DB
     async def override_get_db():
         """
         Dependency override: replaces the real database session with
@@ -177,16 +144,12 @@ async def client(db_session):
         """
         yield db_session
 
-    # Register the override with FastAPI's dependency injection system
     app.dependency_overrides[get_db] = override_get_db
 
-    # Create the async HTTP client using the ASGI transport
-    # base_url must be set — httpx requires it for relative URL resolution
     async with AsyncClient(
         transport=ASGITransport(app=app),
         base_url="http://testserver",
     ) as ac:
-        yield ac  # ← test uses this client to make requests
+        yield ac
 
-    # Clean up: remove the dependency override after the test
     app.dependency_overrides.clear()

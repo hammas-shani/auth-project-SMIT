@@ -53,14 +53,7 @@ from app.utils.security import (
 
 router = APIRouter()
 
-# HTTPBearer extractor — reads "Authorization: Bearer <token>" header.
-# Used directly in logout to access the raw token string for JTI extraction.
 bearer_scheme = HTTPBearer(auto_error=True)
-
-
-# =============================================================================
-# POST /auth/signup — Register a New User (Spec §4.1 Step 1)
-# =============================================================================
 
 
 @router.post(
@@ -91,7 +84,6 @@ async def signup(
     Raises:
         400: Email is already registered.
     """
-    # Duplicate email check — unique constraint also enforced at DB level
     result = await db.execute(
         select(User).where(User.email == request.email)
     )
@@ -101,24 +93,17 @@ async def signup(
             detail="Email already registered",
         )
 
-    # Hash the password before any DB interaction
     new_user = User(
         email=request.email,
         name=request.name,
         hashed_password=hash_password(request.password),
-        # is_active=True, is_superuser=False are set by SQLAlchemy column defaults
     )
 
     db.add(new_user)
-    await db.commit()  # Persist to database
-    await db.refresh(new_user)  # Reload to get DB-generated id and created_at
+    await db.commit()
+    await db.refresh(new_user)
 
     return new_user
-
-
-# =============================================================================
-# POST /auth/login — Authenticate and Get Token Pair (Spec §4.1 Step 2)
-# =============================================================================
 
 
 @router.post(
@@ -158,8 +143,6 @@ async def login(
     )
     user = result.scalars().first()
 
-    # verify_password runs even if user is None to prevent timing-based
-    # enumeration attacks (constant-time behavior regardless of user existence)
     if not user or not verify_password(request.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -172,11 +155,6 @@ async def login(
         refresh_token=create_refresh_token(email=user.email, user_id=user.id),
         token_type="bearer",
     )
-
-
-# =============================================================================
-# POST /auth/refresh — Rotate Tokens (Spec §4.1 Step 4)
-# =============================================================================
 
 
 @router.post(
@@ -208,7 +186,6 @@ async def refresh_tokens(
     Raises:
         401: Refresh token is expired, invalid, or the wrong token type.
     """
-    # verify_refresh_token uses REFRESH_SECRET_KEY exclusively
     payload = verify_refresh_token(request.refresh_token)
 
     if payload is None or payload.get("type") != "refresh":
@@ -234,11 +211,6 @@ async def refresh_tokens(
         refresh_token=create_refresh_token(email=user.email, user_id=user.id),
         token_type="bearer",
     )
-
-
-# =============================================================================
-# GET /auth/me — Get Current User Profile (Spec §4.1 Step 3)
-# =============================================================================
 
 
 @router.get(
@@ -269,13 +241,7 @@ async def get_me(
     Returns:
         UserProfileResponse: {id, email, name, is_active, is_superuser}
     """
-    # The dependency has done all the work. Just return the user.
     return current_user
-
-
-# =============================================================================
-# POST /auth/logout — Revoke Access Token (Spec §4.1 Step 5)
-# =============================================================================
 
 
 @router.post(
@@ -322,10 +288,8 @@ async def logout(
     Raises:
         401: If the provided token is already expired or structurally invalid.
     """
-    # Extract token string from "Bearer <token>"
     raw_token = credentials.credentials
 
-    # Verify the access token — must be valid and non-expired to logout
     payload = verify_access_token(raw_token)
 
     if payload is None or payload.get("type") != "access":
@@ -335,7 +299,6 @@ async def logout(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # Extract the JTI — the unique fingerprint for this specific token instance
     jti = payload.get("jti")
     if not jti:
         raise HTTPException(
@@ -343,14 +306,9 @@ async def logout(
             detail="Token does not contain a JTI claim. Cannot revoke.",
         )
 
-    # Calculate remaining valid seconds for this token
-    # This becomes the Redis TTL — the blacklist entry lives exactly as long
-    # as the token would have been valid anyway
     ttl = get_remaining_ttl(payload)
 
     if ttl > 0:
-        # Blacklist the JTI in Redis with the calculated TTL
         await blacklist_token(jti=jti, ttl_seconds=ttl)
 
-    # Return the standard action confirmation (Spec §3.3)
     return StandardActionResponse(detail="Logout successful. Token revoked.")

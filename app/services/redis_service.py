@@ -39,17 +39,7 @@ import redis.asyncio as aioredis
 
 from app.utils.config import settings
 
-
-# ── Global Redis Client ───────────────────────────────────────────────────────
-# Initialized to None at module load.
-# Set to a live Redis client by init_redis() at application startup.
-# All functions in this module reference this single shared client.
 redis_client: aioredis.Redis | None = None
-
-
-# =============================================================================
-# LIFECYCLE FUNCTIONS — Called from app/main.py lifespan
-# =============================================================================
 
 
 async def init_redis() -> None:
@@ -75,8 +65,8 @@ async def init_redis() -> None:
     redis_client = aioredis.from_url(
         settings.REDIS_URL,
         encoding="utf-8",
-        decode_responses=True,  # Returns str, not bytes
-        max_connections=10,  # Connection pool upper bound
+        decode_responses=True,
+        max_connections=10,
     )
 
 
@@ -94,11 +84,6 @@ async def close_redis() -> None:
     if redis_client:
         await redis_client.aclose()
         redis_client = None
-
-
-# =============================================================================
-# BLACKLIST OPERATIONS
-# =============================================================================
 
 
 async def blacklist_token(jti: str, ttl_seconds: int) -> None:
@@ -130,9 +115,9 @@ async def blacklist_token(jti: str, ttl_seconds: int) -> None:
         )
 
     await redis_client.setex(
-        name=f"blacklist:{jti}",  # Namespaced key to avoid collisions
-        time=ttl_seconds,  # Auto-delete after this many seconds
-        value="1",  # Minimal value — existence is what matters
+        name=f"blacklist:{jti}",
+        time=ttl_seconds,
+        value="1",
     )
 
 
@@ -165,5 +150,4 @@ async def is_blacklisted(jti: str) -> bool:
         )
 
     result = await redis_client.exists(f"blacklist:{jti}")
-    # redis.exists() returns an integer: 1 = key exists, 0 = key absent
     return result == 1

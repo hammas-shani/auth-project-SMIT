@@ -2,8 +2,6 @@ from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 from datetime import datetime
 
-
-# Request schemas
 class UserSignupRequest(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=8, max_length=100)
@@ -18,8 +16,6 @@ class UserLoginRequest(BaseModel):
 class TokenRefreshRequest(BaseModel):
     refresh_token: str
 
-
-# Response schemas
 class UserRegistrationResponse(BaseModel):
     id: int
     email: str

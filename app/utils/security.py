@@ -35,15 +35,7 @@ from passlib.context import CryptContext
 from app.utils.config import settings
 
 
-# -- Password Hashing Context -------------------------------------------------
-# bcrypt: industry-standard adaptive hashing algorithm.
-# "deprecated=auto" upgrades old hashes on verify (future-proof).
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-
-# =============================================================================
-# PASSWORD UTILITIES
-# =============================================================================
 
 
 def _truncate_password(password: str) -> str:
@@ -106,22 +98,17 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     )
 
 
-# =============================================================================
-# TOKEN CREATION
-# =============================================================================
-
-
 def create_access_token(email: str, user_id: int) -> str:
     """
     Create a short-lived JWT Access Token (Spec §2.2).
 
     Payload structure:
         {
-            "email"  : "user@example.com",  # For user identification
-            "user_id": 1,                    # DB primary key for fast queries
-            "type"   : "access",             # Explicit label — Spec §2.2
-            "jti"    : "<uuid4>",            # Unique ID for blacklisting
-            "exp"    : <unix_timestamp>      # Auto-validated by jose
+            "email"  : "user@example.com",  
+            "user_id": 1,                    
+            "type"   : "access",             
+            "jti"    : "<uuid4>",            
+            "exp"    : <unix_timestamp>      
         }
 
     Signed with: settings.SECRET_KEY — the ACCESS-token secret ONLY.
@@ -140,11 +127,10 @@ def create_access_token(email: str, user_id: int) -> str:
     payload = {
         "email": email,
         "user_id": user_id,
-        "type": "access",  # Explicit type label — Spec §2.2
-        "jti": str(uuid.uuid4()),  # Unique fingerprint for blacklisting
+        "type": "access",
+        "jti": str(uuid.uuid4()),
         "exp": expire,
     }
-    # Signed exclusively with SECRET_KEY (access token secret)
     return jwt.encode(
         payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM
     )
@@ -177,19 +163,13 @@ def create_refresh_token(email: str, user_id: int) -> str:
     payload = {
         "email": email,
         "user_id": user_id,
-        "type": "refresh",  # Explicit type label — Spec §2.2
-        "jti": str(uuid.uuid4()),  # Unique fingerprint
+        "type": "refresh",
+        "jti": str(uuid.uuid4()),
         "exp": expire,
     }
-    # ↓ REFRESH_SECRET_KEY — completely separate from SECRET_KEY
     return jwt.encode(
         payload, settings.REFRESH_SECRET_KEY, algorithm=settings.ALGORITHM
     )
-
-
-# =============================================================================
-# TOKEN VERIFICATION
-# =============================================================================
 
 
 def verify_access_token(token: str) -> Optional[dict]:
@@ -214,11 +194,10 @@ def verify_access_token(token: str) -> Optional[dict]:
     try:
         return jwt.decode(
             token,
-            settings.SECRET_KEY,  # Access token secret only
+            settings.SECRET_KEY,
             algorithms=[settings.ALGORITHM],
         )
     except JWTError:
-        # Token expired, signature mismatch, or structurally invalid
         return None
 
 
@@ -241,7 +220,7 @@ def verify_refresh_token(token: str) -> Optional[dict]:
     try:
         return jwt.decode(
             token,
-            settings.REFRESH_SECRET_KEY,  # Refresh token secret only
+            settings.REFRESH_SECRET_KEY,
             algorithms=[settings.ALGORITHM],
         )
     except JWTError:
@@ -263,7 +242,6 @@ def get_remaining_ttl(payload: dict) -> int:
         Remaining seconds as an integer. Returns 0 if already expired.
     """
     exp_timestamp = payload.get("exp", 0)
-    # exp can be a datetime or a numeric timestamp depending on jose version
     if isinstance(exp_timestamp, datetime):
         exp_dt = exp_timestamp
     else:
@@ -271,4 +249,4 @@ def get_remaining_ttl(payload: dict) -> int:
 
     now = datetime.now(timezone.utc)
     remaining = (exp_dt - now).total_seconds()
-    return max(0, int(remaining))  # Never return a negative TTL
+    return max(0, int(remaining))

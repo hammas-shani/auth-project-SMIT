@@ -1,22 +1,3 @@
-# ─────────────────────────────────────────────────────────────────────────────
-# GitHub Actions CI Pipeline — Core-Auth System
-# Spec §5: Continuous Quality Gate
-#
-# Triggers:
-#   - Every push to main or develop branch
-#   - Every pull request targeting main
-#
-# Pipeline Stages (Spec §5 Compliance Matrix):
-#   1. Environment Spawn  → PostgreSQL + Redis service containers with health checks
-#   2. Linter Engine      → ruff + flake8 syntax/style validation
-#   3. Static Security    → bandit SAST scan (hardcoded secrets, weak crypto)
-#   4. Async Test Suites  → pytest with asyncio, all 6 E2E scenarios must pass
-#
-# Compliance Rule (Spec §5):
-#   Code changes will NOT be merged if any stage fails, returns an error,
-#   or drops below security standards.
-# ─────────────────────────────────────────────────────────────────────────────
-
 name: Core-Auth CI Pipeline
 
 on:
@@ -30,13 +11,7 @@ jobs:
     name: Quality Gate — Lint | SAST | Tests
     runs-on: ubuntu-latest
 
-    # ── Service Containers (Spec §5 — Environment Spawn) ─────────────────────
-    # Spun up alongside the runner before any steps execute.
-    # Both containers must pass their health checks before steps begin.
     services:
-
-      # PostgreSQL — production-equivalent database service
-      # Health check: pg_isready polls every 5s, must succeed within 30s
       postgres:
         image: postgres:15
         env:
@@ -51,8 +26,6 @@ jobs:
           --health-timeout=5s
           --health-retries=6
 
-      # Redis — in-memory blacklist layer
-      # Health check: redis-cli ping, must respond within 10s (Spec §5)
       redis:
         image: redis:7-alpine
         ports:
@@ -63,10 +36,6 @@ jobs:
           --health-timeout=5s
           --health-retries=6
 
-    # ── Environment Variables for all steps ───────────────────────────────────
-    # Tests use SQLite in-memory (via conftest.py override), but these
-    # environment variables satisfy the Settings() Pydantic validation
-    # so the app can start and be imported without errors.
     env:
       DATABASE_URL:                  "sqlite+aiosqlite:///:memory:"
       SECRET_KEY:                    "ci-access-secret-key-for-testing-only-32chars"
@@ -77,32 +46,20 @@ jobs:
       REDIS_URL:                     "redis://localhost:6379"
 
     steps:
-
-      # ── Checkout source code ────────────────────────────────────────────────
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # ── Set up Python runtime ───────────────────────────────────────────────
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-          cache: "pip"          # Cache pip downloads between runs for speed
+          cache: "pip"
 
-      # ── Install all dependencies ────────────────────────────────────────────
       - name: Install Dependencies
         run: pip install -r requirements.txt
 
-      # ════════════════════════════════════════════════════════════════════════
-      # STAGE 2: Linter Engine (Spec §5)
-      # Target: Zero syntax errors, zero unused references, PEP8 compliance
-      # ════════════════════════════════════════════════════════════════════════
-
       - name: "[Lint] ruff — Fast Python Linter"
-        # ruff checks: pyflakes (F), pycodestyle (E/W), isort (I), and more
-        # --select ALL enables all checks; adjust if specific rules need skipping
         run: ruff check app/ tests/
-        # Exit code non-zero → pipeline fails here (Spec §5 compliance rule)
 
       - name: "[Lint] flake8 — PEP8 Style Compliance"
         run: |
@@ -111,16 +68,9 @@ jobs:
             --exclude=__pycache__,.venv,venv \
             --count \
             --statistics
-        # --count prints total errors; --statistics shows error distribution
-
-      # ════════════════════════════════════════════════════════════════════════
-      # STAGE 3: Static Security Audit / SAST (Spec §5)
-      # Target: No hardcoded credentials, no weak crypto, no dangerous calls
-      # ════════════════════════════════════════════════════════════════════════
 
       - name: "[SAST] bandit — Static Application Security Testing"
         run: |
-          # First pass: medium+ issues — write report, do NOT fail the pipeline
           bandit -r app/ \
             --severity-level medium \
             --confidence-level medium \
@@ -128,29 +78,14 @@ jobs:
             -o bandit-report.txt --exit-zero
           cat bandit-report.txt
 
-          # Second pass: HIGH severity only — fails pipeline if any found.
-          # Do NOT use --exit-zero here; non-zero exit == pipeline failure.
-          # Note: --exit-zero=False is not valid bandit syntax; simply omitting
-          # the flag is the correct way to get a non-zero exit on findings.
           bandit -r app/ --severity-level high --confidence-level high
-        # bandit scans for:
-        #   B105/B106 — hardcoded passwords
-        #   B501/B502 — weak SSL/TLS
-        #   B303/B304 — weak MD5/SHA1 usage
-        #   B608      — SQL injection patterns
-        #   B101      — use of assert in non-test code
 
       - name: Upload SAST Report
         uses: actions/upload-artifact@v4
-        if: always()   # Upload even if bandit fails, for review
+        if: always()
         with:
           name: bandit-security-report
           path: bandit-report.txt
-
-      # ════════════════════════════════════════════════════════════════════════
-      # STAGE 4: Async Test Suites (Spec §5)
-      # Target: 100% of test suites pass using non-blocking async calls
-      # ════════════════════════════════════════════════════════════════════════
 
       - name: "[Tests] pytest — Async Integration Tests"
         run: |
@@ -161,9 +96,6 @@ jobs:
             --cov=app \
             --cov-report=term-missing \
             --cov-report=xml:coverage.xml
-        # --asyncio-mode=auto  → all async tests run on the event loop (Spec §5)
-        # --cov=app            → measure coverage of the app/ package
-        # --cov-report=xml     → generates coverage.xml for CI badge/tools
 
       - name: Upload Coverage Report
         uses: actions/upload-artifact@v4
