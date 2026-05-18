@@ -2,6 +2,7 @@ from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 from datetime import datetime
 
+
 class UserSignupRequest(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=8, max_length=100)
@@ -15,6 +16,7 @@ class UserLoginRequest(BaseModel):
 
 class TokenRefreshRequest(BaseModel):
     refresh_token: str
+
 
 class UserRegistrationResponse(BaseModel):
     id: int
@@ -43,6 +45,7 @@ class UserProfileResponse(BaseModel):
     name: Optional[str]
     is_active: bool
     is_superuser: bool
+
 
     class Config:
         from_attributes = True
