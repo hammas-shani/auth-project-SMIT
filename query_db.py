@@ -12,9 +12,7 @@ for table in tables:
 print("\n" + "=" * 70)
 print("USERS TABLE CONTENT:")
 print("=" * 70)
-cursor.execute(
-    "SELECT id, email, hashed_password, is_active, created_at FROM users"
-)
+cursor.execute("SELECT id, email, hashed_password, is_active, created_at FROM users")
 rows = cursor.fetchall()
 print(f"\n✓ Total users stored: {len(rows)}\n")
 

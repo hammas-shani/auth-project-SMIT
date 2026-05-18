@@ -84,9 +84,7 @@ async def signup(
     Raises:
         400: Email is already registered.
     """
-    result = await db.execute(
-        select(User).where(User.email == request.email)
-    )
+    result = await db.execute(select(User).where(User.email == request.email))
     if result.scalars().first():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -138,9 +136,7 @@ async def login(
         401: Email not found or password is incorrect.
              (Identical message for both cases — prevents user enumeration)
     """
-    result = await db.execute(
-        select(User).where(User.email == request.email)
-    )
+    result = await db.execute(select(User).where(User.email == request.email))
     user = result.scalars().first()
 
     if not user or not verify_password(request.password, user.hashed_password):
@@ -195,9 +191,7 @@ async def refresh_tokens(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    result = await db.execute(
-        select(User).where(User.id == payload.get("user_id"))
-    )
+    result = await db.execute(select(User).where(User.id == payload.get("user_id")))
     user = result.scalars().first()
 
     if not user:

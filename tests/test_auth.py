@@ -68,21 +68,15 @@ async def test_01_register(client: AsyncClient):
     assert "is_superuser" in data, "Response must contain 'is_superuser'"
     assert "created_at" in data, "Response must contain 'created_at'"
 
-    assert data["email"] == TEST_EMAIL, (
-        "Returned email must match the submitted email"
-    )
+    assert data["email"] == TEST_EMAIL, "Returned email must match the submitted email"
     assert data["is_active"] is True, "New accounts must be active by default"
     assert (
         data["is_superuser"] is False
     ), "New accounts must not be superuser by default"
     assert isinstance(data["id"], int), "ID must be an integer"
 
-    assert "password" not in data, (
-        "Plaintext password must never be in response"
-    )
-    assert "hashed_password" not in data, (
-        "Hashed password must never be in response"
-    )
+    assert "password" not in data, "Plaintext password must never be in response"
+    assert "hashed_password" not in data, "Hashed password must never be in response"
 
 
 @pytest.mark.asyncio
@@ -107,9 +101,7 @@ async def test_01b_register_duplicate_email(client: AsyncClient):
         json={"email": TEST_EMAIL, "password": TEST_PASSWORD},
     )
 
-    assert response.status_code == 400, (
-        "Duplicate email registration must return 400"
-    )
+    assert response.status_code == 400, "Duplicate email registration must return 400"
     assert "already registered" in response.json()["detail"].lower()
 
 
@@ -152,12 +144,8 @@ async def test_02_login(client: AsyncClient):
     assert (
         data["token_type"] == "bearer"
     ), "token_type must be exactly 'bearer' (OAuth2)"
-    assert isinstance(data["access_token"], str) and len(
-        data["access_token"]
-    ) > 10
-    assert isinstance(data["refresh_token"], str) and len(
-        data["refresh_token"]
-    ) > 10
+    assert isinstance(data["access_token"], str) and len(data["access_token"]) > 10
+    assert isinstance(data["refresh_token"], str) and len(data["refresh_token"]) > 10
 
     assert (
         data["access_token"] != data["refresh_token"]
@@ -217,9 +205,7 @@ async def test_03_protected_me(client: AsyncClient):
     assert response.status_code == 200, f"/me failed: {response.text}"
 
     data = response.json()
-    assert data["email"] == TEST_EMAIL, (
-        "Returned email must match logged-in user"
-    )
+    assert data["email"] == TEST_EMAIL, "Returned email must match logged-in user"
     assert "id" in data
     assert "is_active" in data
 
@@ -270,9 +256,7 @@ async def test_04_token_refresh(client: AsyncClient):
     assert "refresh_token" in data
     assert data["token_type"] == "bearer"
 
-    assert data["access_token"] != original_access, (
-        "New access token must be different"
-    )
+    assert data["access_token"] != original_access, "New access token must be different"
     assert (
         data["refresh_token"] != original_refresh
     ), "New refresh token must be different"
@@ -325,9 +309,7 @@ async def test_05_logout(client: AsyncClient, mock_redis):
 
 
 @pytest.mark.asyncio
-async def test_06_zero_trust_blacklisted_token(
-    client: AsyncClient, mock_redis
-):
+async def test_06_zero_trust_blacklisted_token(client: AsyncClient, mock_redis):
     """
     Spec §4.1 Step 6 — The Zero-Trust Post-Validation Step.
 
@@ -367,7 +349,5 @@ async def test_06_zero_trust_blacklisted_token(
     )
 
     data = response.json()
-    assert "email" not in data, (
-        "No user data must be returned for revoked tokens"
-    )
+    assert "email" not in data, "No user data must be returned for revoked tokens"
     assert "access_token" not in data

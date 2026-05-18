@@ -4,6 +4,5 @@ This script is kept for reference only.
 """
 
 print(
-    "Use: uvicorn app.main:app --reload"
-    "  (tables created automatically on startup)"
+    "Use: uvicorn app.main:app --reload" "  (tables created automatically on startup)"
 )

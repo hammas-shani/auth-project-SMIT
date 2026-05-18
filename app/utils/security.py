@@ -1,5 +1,3 @@
-
-
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -40,9 +38,7 @@ def hash_password(password: str) -> str:
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
 
-    return pwd_context.verify(
-        _truncate_password(plain_password), hashed_password
-    )
+    return pwd_context.verify(_truncate_password(plain_password), hashed_password)
 
 
 def create_access_token(email: str, user_id: int) -> str:
@@ -57,13 +53,11 @@ def create_access_token(email: str, user_id: int) -> str:
         "jti": str(uuid.uuid4()),
         "exp": expire,
     }
-    return jwt.encode(
-        payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM
-    )
+    return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
 def create_refresh_token(email: str, user_id: int) -> str:
-  
+
     expire = datetime.now(timezone.utc) + timedelta(
         days=settings.REFRESH_TOKEN_EXPIRE_DAYS
     )
@@ -80,7 +74,7 @@ def create_refresh_token(email: str, user_id: int) -> str:
 
 
 def verify_access_token(token: str) -> Optional[dict]:
-   
+
     try:
         return jwt.decode(
             token,
@@ -110,7 +104,6 @@ def get_remaining_ttl(payload: dict) -> int:
         exp_dt = exp_timestamp
     else:
         exp_dt = datetime.fromtimestamp(exp_timestamp, tz=timezone.utc)
-
     now = datetime.now(timezone.utc)
     remaining = (exp_dt - now).total_seconds()
     return max(0, int(remaining))
